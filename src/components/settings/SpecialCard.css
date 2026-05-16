@@ -30,18 +30,18 @@
 }
 
 .vc-special-title {
-    color: black;
+    color: rgba(255, 255, 255, 0.55);
 }
 
 .vc-special-subtitle {
-    color: black;
+    color: #fff;
     font-size: 1.2em;
     font-weight: bold;
     margin-top: 0.5em;
 }
 
 .vc-special-text {
-    color: black;
+    color: rgba(255, 255, 255, 0.78);
     font-size: 1em;
     margin-top: .75em;
     white-space: pre-line;
@@ -58,7 +58,7 @@
     cursor: pointer;
 
     .vc-special-hyperlink-text {
-        color: black;
+        color: #fff;
         font-size: 1em;
         font-weight: bold;
         text-align: center;
@@ -80,7 +80,7 @@
     width: 100px;
     height: 100px;
     border-radius: 50%;
-    background-color: white;
+    background-color: black;
 }
 
 .vc-special-image {

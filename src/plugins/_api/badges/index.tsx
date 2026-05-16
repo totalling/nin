@@ -104,5 +104,9 @@ export default definePlugin({
         if (onClick) handlers.onClick = e => onClick(e, badge);
         if (onContextMenu) handlers.onContextMenu = e => onContextMenu(e, badge);
         return handlers;
+    },
+
+    getDonorBadges(_userId: string): ProfileBadge[] | null {
+        return null;
     }
 });
