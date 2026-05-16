@@ -28,26 +28,6 @@ pnpm build
 pnpm installer
 ```
 
-The installer is an interactive terminal UI — navigate with arrow keys, press Enter to install.
-
-To inject directly:
-
-```sh
-pnpm inject
-```
-
-To remove:
-
-```sh
-pnpm uninject
-```
-
-## Development
-
-```sh
-pnpm watch
-```
-
 Fully restart Discord after each rebuild.
 
 ## License
