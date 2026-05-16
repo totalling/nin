@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-/*
- * nin installer — terminal UI
- */
 
 import { existsSync, writeFileSync, renameSync, rmSync } from "fs";
 import { execSync } from "child_process";
@@ -14,7 +11,42 @@ const ROOT = join(__dirname, "..", "..");
 const DIST = join(ROOT, "dist");
 const PATCHER = join(DIST, "patcher.js");
 
-// ── asar ──────────────────────────────────────────────────────────────────────
+const c = {
+    reset: "\x1b[0m",
+    bold: "\x1b[1m",
+    dim: "\x1b[2m",
+    red: "\x1b[31m",
+    green: "\x1b[32m",
+    yellow: "\x1b[33m",
+    blue: "\x1b[34m",
+    magenta: "\x1b[35m",
+    cyan: "\x1b[36m",
+    white: "\x1b[37m",
+    clear: "\x1b[2J\x1b[H",
+    hideCursor: "\x1b[?25l",
+    showCursor: "\x1b[?25h"
+};
+
+const b = s => `${c.bold}${s}${c.reset}`;
+const dim = s => `${c.dim}${s}${c.reset}`;
+const strip = s => s.replace(/\x1b\[[^m]*m/g, "");
+const rpad = (s, n) => s + " ".repeat(Math.max(0, n - strip(s).length));
+
+const out = process.stdout;
+const W = Math.min(out.columns || 80, 76);
+const nl = (s = "") => out.write(s + "\n");
+const center = s => " ".repeat(Math.floor((W - strip(s).length) / 2)) + s;
+
+const RULE = dim("─".repeat(W - 4));
+
+const LOGO = [
+    `${c.cyan}███╗   ██╗██╗███╗   ██╗${c.reset}`,
+    `${c.cyan}████╗  ██║██║████╗  ██║${c.reset}`,
+    `${c.cyan}██╔██╗ ██║██║██╔██╗ ██║${c.reset}`,
+    `${c.cyan}██║╚██╗██║██║██║╚██╗██║${c.reset}`,
+    `${c.cyan}██║ ╚████║██║██║ ╚████║${c.reset}`,
+    `${c.cyan}╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝${c.reset}`
+];
 
 function buildAsar(patcherPath) {
     const indexJs = `require(${JSON.stringify(patcherPath)})`;
@@ -38,8 +70,6 @@ function buildAsar(patcherPath) {
     prefix.writeUInt32LE(padded, 12);
     return Buffer.concat([prefix, headerPadded, indexBuf, pkgBuf]);
 }
-
-// ── Discord discovery ─────────────────────────────────────────────────────────
 
 const home = homedir();
 
@@ -87,8 +117,6 @@ function findInstalls() {
         .filter(d => d.valid);
 }
 
-// ── patch ops ─────────────────────────────────────────────────────────────────
-
 function fixPerms(p) {
     if (platform() !== "darwin") return;
     try { execSync(`sudo chown -R "${process.env.USER}:wheel" "${p}"`, { stdio: "pipe" }); } catch {}
@@ -96,7 +124,7 @@ function fixPerms(p) {
 }
 
 function doInstall(inst) {
-    if (!existsSync(PATCHER)) throw new Error("nin dist missing — run pnpm build first");
+    if (!existsSync(PATCHER)) throw new Error("nin build footprint missing — run `pnpm build` first");
     fixPerms(inst.path);
     if (inst.patched) rmSync(inst.asar, { force: true });
     else renameSync(inst.asar, inst.backup);
@@ -112,37 +140,7 @@ function doUninstall(inst) {
     fixPerms(inst.path);
 }
 
-// ── terminal helpers ──────────────────────────────────────────────────────────
-
-const out = process.stdout;
-const W = Math.min(out.columns || 80, 76);
-
-const nl  = (s = "") => out.write(s + "\n");
-const b   = s => `\x1b[1m${s}\x1b[22m`;
-const dim = s => `\x1b[2m${s}\x1b[22m`;
-
-function strip(s) { return s.replace(/\x1b\[[^m]*m/g, ""); }
-function rpad(s, n) { return s + " ".repeat(Math.max(0, n - strip(s).length)); }
-function center(s) {
-    const len = strip(s).length;
-    return " ".repeat(Math.floor((W - len) / 2)) + s;
-}
-
-const RULE = dim("─".repeat(W - 4));
-
-// ANSI shadow "NIN"
-const LOGO = [
-    "███╗   ██╗██╗███╗   ██╗",
-    "████╗  ██║██║████╗  ██║",
-    "██╔██╗ ██║██║██╔██╗ ██║",
-    "██║╚██╗██║██║██║╚██╗██║",
-    "██║ ╚████║██║██║ ╚████║",
-    "╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝",
-];
-
-// ── state ─────────────────────────────────────────────────────────────────────
-
-let view      = "main";   // "main" | "action"
+let view      = "main";
 let installs  = [];
 let sel       = 0;
 let actionSel = 0;
@@ -152,24 +150,22 @@ let flashOk   = true;
 function actionsFor(inst) {
     return inst.patched
         ? [
-            { id: "repair",    label: "repair",    desc: "re-inject nin" },
-            { id: "uninstall", label: "uninstall", desc: "restore original Discord" },
-            { id: "back",      label: "back",      desc: "" },
+            { id: "repair",    label: "Repair",    desc: "Re-inject framework modifications" },
+            { id: "uninstall", label: "Uninstall", desc: "Restore original pristine Discord binaries" },
+            { id: "back",      label: "← Back",    desc: "Return to environment list" },
           ]
         : [
-            { id: "install",   label: "install",   desc: "inject nin into Discord" },
-            { id: "back",      label: "back",      desc: "" },
+            { id: "install",   label: "Install",   desc: "Inject client modifications into app container" },
+            { id: "back",      label: "← Back",    desc: "Return to environment list" },
           ];
 }
 
-// ── draw ──────────────────────────────────────────────────────────────────────
-
 function drawHeader() {
-    out.write("\x1b[2J\x1b[H");
+    out.write(c.clear);
     nl();
-    for (const row of LOGO) nl(center(b(row)));
+    for (const row of LOGO) nl(center(row));
     nl();
-    nl(center(dim("installer  ·  v1.14.13  ·  lightweight discord mod")));
+    nl(center(`${c.dim}installer  ·  ${c.cyan}v1.14.13${c.reset}${c.dim}  ·  lightweight client architecture${c.reset}`));
     nl();
     nl("  " + RULE);
     nl();
@@ -179,25 +175,29 @@ function drawMain() {
     drawHeader();
 
     if (!existsSync(PATCHER)) {
-        nl(`  ${dim("!")} nin is not built — run ${b("pnpm build")} first`);
+        nl(`  ${c.yellow}⚠️  Warning:${c.reset} Distribution payload missing. Run ${c.cyan}${b("pnpm build")}${c.reset} first.`);
         nl();
     }
 
-    nl(`  ${b("INSTALLATIONS")}`);
+    nl(`  ${b("AVAILABLE TARGET ENVIRONMENTS")}`);
     nl();
 
     if (installs.length === 0) {
-        nl(`  ${dim("  no Discord installations found")}`);
+        nl(`  ${c.red}  No valid Discord platform configurations discovered.${c.reset}`);
     } else {
         const nameW = Math.max(...installs.map(i => i.name.length)) + 2;
         for (let i = 0; i < installs.length; i++) {
             const inst  = installs[i];
             const on    = i === sel;
-            const arrow = on ? b("❯") : " ";
-            const name  = rpad(on ? b(inst.name) : inst.name, on ? nameW + 9 : nameW);
-            const tag   = inst.patched ? b("[patched]") : dim("[clean]  ");
+            
+            const arrow = on ? `${c.cyan}❯${c.reset}` : " ";
+            const name  = on ? `${c.cyan}${b(inst.name)}${c.reset}` : inst.name;
+            const tag   = inst.patched 
+                ? `${c.green}[patched]${c.reset}` 
+                : `${c.dim}[clean]  ${c.reset}`;
             const path  = dim(inst.path);
-            nl(`  ${arrow}  ${name}  ${tag}  ${path}`);
+
+            nl(`  ${arrow}  ${rpad(name, on ? nameW + 9 : nameW)}  ${tag}  ${path}`);
         }
     }
 
@@ -206,11 +206,11 @@ function drawMain() {
     nl();
 
     if (flash) {
-        nl(`  ${flashOk ? b(flash) : dim(flash)}`);
+        nl(`  ${flashOk ? `${c.green}✔ ${b(flash)}` : `${c.red}✘ ${flash}`}${c.reset}`);
         nl();
     }
 
-    nl(`  ${dim("↑↓")} navigate   ${dim("↵")} select   ${dim("q")} quit`);
+    nl(`  ${dim("↑↓")} Navigate   ${dim("↵")} Confirm Target   ${dim("Q / Ctrl+C")} Exit Window`);
     nl();
 }
 
@@ -218,7 +218,7 @@ function drawAction() {
     const inst = installs[sel];
     drawHeader();
 
-    nl(`  ${b(inst.name)}  ${dim(inst.path)}`);
+    nl(`  ${b("Target Environment:")} ${c.cyan}${inst.name}${c.reset}  ${dim(`(${inst.path})`)}`);
     nl();
     nl("  " + RULE);
     nl();
@@ -227,15 +227,16 @@ function drawAction() {
     for (let i = 0; i < acts.length; i++) {
         const { label, desc } = acts[i];
         const on    = i === actionSel;
-        const arrow = on ? b("❯") : " ";
-        const lbl   = rpad(on ? b(label) : label, 14);
-        nl(`  ${arrow}  ${lbl}  ${desc ? dim(desc) : ""}`);
+        
+        const arrow = on ? `${c.cyan}❯${c.reset}` : " ";
+        const lbl   = on ? `${c.cyan}${b(label)}${c.reset}` : label;
+        nl(`  ${arrow}  ${rpad(lbl, on ? 23 : 14)}  ${desc ? dim(desc) : ""}`);
     }
 
     nl();
     nl("  " + RULE);
     nl();
-    nl(`  ${dim("↑↓")} navigate   ${dim("↵")} confirm   ${dim("esc")} back`);
+    nl(`  ${dim("↑↓")} Select Task   ${dim("↵")} Execute Activity   ${dim("Esc / ←")} Go Back`);
     nl();
 }
 
@@ -244,36 +245,32 @@ function draw() {
     else drawAction();
 }
 
-// ── spinner ───────────────────────────────────────────────────────────────────
-
-const FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
+const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 function startSpinner(label) {
     let fi = 0;
-    out.write(`\n  ${dim(label)}  `);
+    out.write(`\n  ${c.cyan}${FRAMES[0]}${c.reset} ${dim(label)}...`);
     return setInterval(() => {
-        out.write(`\x1b[1D\x1b[2m${FRAMES[fi++ % FRAMES.length]}\x1b[22m`);
+        out.write(`\x1b[${strip(label).length + 7}D${c.cyan}${FRAMES[fi++ % FRAMES.length]}${c.reset} ${dim(label)}...`);
     }, 80);
 }
 
 function stopSpinner(id, ok) {
     clearInterval(id);
-    out.write(`\x1b[1D${ok ? "✓" : "✗"}\n`);
+    out.write("\r\x1b[K");
 }
 
-// ── action runner ─────────────────────────────────────────────────────────────
-
 async function runAction(inst, actionId) {
-    const label = actionId === "repair" ? "repairing" : actionId === "install" ? "installing" : "uninstalling";
+    const label = actionId === "repair" ? "Re-injecting code payload" : actionId === "install" ? "Deploying workspace hooks" : "Restoring production state";
     const spinner = startSpinner(label);
-    await new Promise(r => setTimeout(r, 60));
+    await new Promise(r => setTimeout(r, 400));
 
     try {
         if (actionId === "install" || actionId === "repair") doInstall(inst);
         else doUninstall(inst);
 
         stopSpinner(spinner, true);
-        flash  = actionId === "uninstall" ? "removed — restart Discord" : "installed — restart Discord";
+        flash  = actionId === "uninstall" ? "Module unhooked successfully. Restart Discord." : "Modifications active. Restart Discord instance.";
         flashOk = true;
     } catch (e) {
         stopSpinner(spinner, false);
@@ -281,27 +278,24 @@ async function runAction(inst, actionId) {
         flashOk = false;
     }
 
-    await new Promise(r => setTimeout(r, 300));
     installs = findInstalls();
     sel      = Math.min(sel, Math.max(0, installs.length - 1));
     view     = "main";
     draw();
 }
 
-// ── input ─────────────────────────────────────────────────────────────────────
-
 if (!process.stdin.isTTY) {
-    console.error("\nnin installer requires an interactive terminal.\nRun: node scripts/installer/index.mjs\n");
+    console.error(`\n${c.red}Error:${c.reset} Interactive TTY environment context required.\nRun: node scripts/installer/index.mjs\n`);
     process.exit(1);
 }
 
 process.stdin.setRawMode(true);
 process.stdin.resume();
 process.stdin.setEncoding("utf8");
-out.write("\x1b[?25l");
+out.write(c.hideCursor);
 
 process.on("exit", () => {
-    out.write("\x1b[?25h\x1b[0m\n");
+    out.write(`${c.showCursor}${c.reset}\n`);
     try { process.stdin.setRawMode(false); } catch {}
 });
 
@@ -313,13 +307,15 @@ let running = false;
 process.stdin.on("data", async key => {
     if (running) return;
 
-    if (key === "\x03" || (key === "q" && view === "main")) process.exit(0);
+    if (key === "\x03" || (key.toLowerCase() === "q" && view === "main")) {
+        process.exit(0);
+    }
 
     if (view === "main") {
-        if (key === "\x1b[A" && installs.length > 0) {
+        if ((key === "\x1b[A" || key === "k") && installs.length > 0) {
             sel = (sel - 1 + installs.length) % installs.length;
             draw();
-        } else if (key === "\x1b[B" && installs.length > 0) {
+        } else if ((key === "\x1b[B" || key === "j") && installs.length > 0) {
             sel = (sel + 1) % installs.length;
             draw();
         } else if ((key === "\r" || key === "\n") && installs.length > 0) {
@@ -334,13 +330,13 @@ process.stdin.on("data", async key => {
     if (view === "action") {
         const acts = actionsFor(installs[sel]);
 
-        if (key === "\x1b[A") {
+        if (key === "\x1b[A" || key === "k") {
             actionSel = (actionSel - 1 + acts.length) % acts.length;
             draw();
-        } else if (key === "\x1b[B") {
+        } else if (key === "\x1b[B" || key === "j") {
             actionSel = (actionSel + 1) % acts.length;
             draw();
-        } else if (key === "\x1b" || key === "\x1b[D") {
+        } else if (key === "\x1b" || key === "\x1b[D" || key === "h") {
             view = "main";
             draw();
         } else if (key === "\r" || key === "\n") {

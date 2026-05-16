@@ -1,16 +1,10 @@
-/*
- * nin, a Discord client mod
- * Copyright (c) 2025 nin contributors
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
 import { addProfileBadge, BadgePosition, ProfileBadge, removeProfileBadge } from "@api/Badges";
 import { Devs } from "@utils/constants";
 import definePlugin from "@utils/types";
 
 const API_URL = "https://nin.lol/api/v1/badges.json";
 
-const NIN_ICON = "https://lovelybio.media/uploads/2a88d302-e8ca-4969-866a-8759ba1c217a/hgYGcSXzYu.png";
+const NIN_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M4 5.5V18.5H7V10.5L17 18.5V5.5H14V13.5L4 5.5Z'/%3E%3C/svg%3E";
 
 type BadgeEntry = { id: string; tooltip: string; link?: string; };
 type BadgesResponse = Record<string, BadgeEntry[]>;
