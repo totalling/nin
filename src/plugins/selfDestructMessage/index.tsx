@@ -1,8 +1,4 @@
-/*
- * nin, a Discord client mod
- * Copyright (c) 2025 nin contributors
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
+// nin © 2026
 
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { addMessagePreSendListener, removeMessagePreSendListener } from "@api/MessageEvents";

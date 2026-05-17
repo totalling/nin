@@ -83,6 +83,6 @@ export async function maybePromptToUpdate(confirmMessage: string, checkForDev = 
         }
     } catch (err) {
         UpdateLogger.error(err);
-        alert("That also failed :( Try updating or re-installing with the installer!");
+        alert("Update failed. Try re-running the installer or pulling manually from https://github.com/totalling/nin");
     }
 }

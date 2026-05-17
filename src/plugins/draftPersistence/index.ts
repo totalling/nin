@@ -1,8 +1,4 @@
-/*
- * nin, a Discord client mod
- * Copyright (c) 2025 nin contributors
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
+// nin © 2026
 
 import * as DataStore from "@api/DataStore";
 import { Devs } from "@utils/constants";

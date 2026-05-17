@@ -1,8 +1,4 @@
-/*
- * nin, a Discord client mod
- * Copyright (c) 2025 nin contributors
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
+// nin © 2026
 
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
