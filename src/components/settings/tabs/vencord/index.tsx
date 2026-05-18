@@ -21,7 +21,7 @@ import { openSavedMessagesModal } from "@plugins/savedMessages";
 import { useSettings } from "@api/Settings";
 import { Divider } from "@components/Divider";
 import { FormSwitch } from "@components/FormSwitch";
-import { FolderIcon, GithubIcon, LogIcon, PaintbrushIcon, RestartIcon } from "@components/Icons";
+import { FolderIcon, GithubIcon, LogIcon, PaintbrushIcon, RestartIcon, UpdaterIcon } from "@components/Icons";
 import { QuickAction, QuickActionCard } from "@components/settings/QuickAction";
 import { SpecialCard } from "@components/settings/SpecialCard";
 import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
@@ -33,6 +33,7 @@ import { IS_MAC, IS_WINDOWS } from "@utils/constants";
 import { Margins } from "@utils/margins";
 import { isPluginDev } from "@utils/misc";
 import { relaunch } from "@utils/native";
+import { checkForUpdates } from "@utils/updater";
 import { Alerts, Forms, React, UserStore } from "@webpack/common";
 
 import { VibrancySettings } from "./MacVibrancySettings";
@@ -223,6 +224,23 @@ function VencordSettings() {
                                 Icon={FolderIcon}
                                 text="Open Settings Folder"
                                 action={() => VencordNative.settings.openFolder()}
+                            />
+                            <QuickAction
+                                Icon={UpdaterIcon}
+                                text="Check for Updates"
+                                action={async () => {
+                                    const outdated = await checkForUpdates();
+                                    if (outdated)
+                                        Alerts.show({
+                                            title: "Update available",
+                                            body: "A new version of nin is available. Relaunch to apply after pulling the latest changes.",
+                                            confirmText: "Relaunch",
+                                            cancelText: "Later",
+                                            onConfirm: relaunch,
+                                        });
+                                    else
+                                        Alerts.show({ title: "No updates", body: "nin is up to date!", confirmText: "OK" });
+                                }}
                             />
                         </>
                     )}
