@@ -6,11 +6,13 @@ import { ErrorCard } from "@components/ErrorCard";
 import { Devs } from "@utils/constants";
 import { Margins } from "@utils/margins";
 import { openModal, ModalRoot, ModalContent, ModalHeader, ModalFooter, ModalCloseButton } from "@utils/modal";
-import definePlugin, { OptionType } from "@utils/types";
+import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { Button } from "@components/Button";
 import { HeadingSecondary } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { ChannelStore, Menu, MessageStore, React } from "@webpack/common";
+
+const Native = VencordNative.pluginHelpers.AISummarize as PluginNative<typeof import("./native")>;
 
 const settings = definePluginSettings({
     apiKey: {
@@ -41,36 +43,30 @@ async function summarize(messages: string): Promise<string> {
     const key = settings.store.apiKey?.trim();
     if (!key) throw new Error("No Groq API key set. Get one free at console.groq.com");
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-            model: settings.store.model ?? "llama-3.1-8b-instant",
-            messages: [
-                {
-                    role: "system",
-                    content: "You are a concise chat summarizer. Summarize the conversation in 3-5 bullet points. Be brief and factual. No preamble.",
-                },
-                {
-                    role: "user",
-                    content: `Summarize this Discord conversation:\n\n${messages}`,
-                },
-            ],
-            max_tokens: 512,
-            temperature: 0.4,
-        }),
+    const body = JSON.stringify({
+        model: settings.store.model ?? "llama-3.1-8b-instant",
+        messages: [
+            {
+                role: "system",
+                content: "You are a concise chat summarizer. Summarize the conversation in 3-5 bullet points. Be brief and factual. No preamble.",
+            },
+            {
+                role: "user",
+                content: `Summarize this Discord conversation:\n\n${messages}`,
+            },
+        ],
+        max_tokens: 512,
+        temperature: 0.4,
     });
 
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error?.message ?? `Groq API error ${res.status}`);
+    const { status, data } = await Native.callGroq(key, settings.store.model ?? "llama-3.1-8b-instant", body);
+
+    if (status !== 200) {
+        const err = JSON.parse(data).catch?.(() => ({}));
+        throw new Error(err?.error?.message ?? `Groq API error ${status}: ${data}`);
     }
 
-    const data = await res.json();
-    return data.choices[0].message.content.trim();
+    return JSON.parse(data).choices[0].message.content.trim();
 }
 
 function SummaryModal({ channelId, modalProps }: { channelId: string; modalProps: any; }) {
