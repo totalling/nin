@@ -9,14 +9,12 @@
 
 import { definePluginSettings } from "@api/Settings";
 import { ErrorCard } from "@components/ErrorCard";
-import { HeadingSecondary } from "@components/Heading";
-import { Paragraph } from "@components/Paragraph";
 import { Devs } from "@utils/constants";
-import { Margins } from "@utils/margins";
 import definePlugin, { OptionType } from "@utils/types";
-import { UserStore } from "@webpack/common";
+import { AuthenticationStore, PresenceStore, UserStore } from "@webpack/common";
 
 type Platform = "desktop" | "web" | "android" | "ios" | "xbox" | "playstation" | "vr";
+type GetClientStatus = typeof PresenceStore.getClientStatus;
 
 const platformBrowserMap: Record<Platform, string> = {
     desktop: "Discord Client",
@@ -26,6 +24,16 @@ const platformBrowserMap: Record<Platform, string> = {
     xbox: "Discord Embedded",
     playstation: "Discord Embedded",
     vr: "Discord VR",
+};
+
+const platformClientStatusMap: Record<Platform, string> = {
+    desktop: "desktop",
+    web: "web",
+    android: "mobile",
+    ios: "mobile",
+    xbox: "embedded",
+    playstation: "embedded",
+    vr: "vr",
 };
 
 const settings = definePluginSettings({
@@ -45,19 +53,22 @@ const settings = definePluginSettings({
     }
 });
 
+let originalGetClientStatus: GetClientStatus | null = null;
+
 export default definePlugin({
     name: "PlatformSpoofer",
     description: "Spoof what platform or device you appear on to other users",
     tags: ["Utility"],
-    authors: [Devs.nin0dev],
+    authors: [Devs.medisiner],
     settings,
 
     settingsAboutComponent: () => (
-        <ErrorCard className={Margins.bottom8}>
-            <HeadingSecondary>Warning</HeadingSecondary>
-            <Paragraph>
-                We can't guarantee this plugin won't get you warned or banned. Use at your own risk.
-            </Paragraph>
+        <ErrorCard style={{ padding: "8px 12px", marginBottom: "8px" }}>
+            <b style={{ fontSize: "13px" }}>Warning</b>
+            <p style={{ margin: "2px 0 0", fontSize: "12px" }}>
+                We can't guarantee this won't get you warned or banned. Use at your own risk.
+                <br />Updated by medisiner (971064130704400405)
+            </p>
         </ErrorCard>
     ),
 
@@ -76,6 +87,28 @@ export default definePlugin({
             ]
         },
     ],
+
+    start() {
+        originalGetClientStatus = PresenceStore.getClientStatus.bind(PresenceStore);
+        PresenceStore.getClientStatus = ((userId: string) => {
+            const currentUser = UserStore.getCurrentUser();
+            if (currentUser && userId === (currentUser.id ?? AuthenticationStore.getId())) {
+                const platform = (settings.store.platform ?? "desktop") as Platform;
+                const clientStatus = platformClientStatusMap[platform];
+                const real = originalGetClientStatus!(userId);
+                const statusValue = Object.values(real)[0] ?? "online";
+                return { [clientStatus]: statusValue };
+            }
+            return originalGetClientStatus!(userId);
+        }) as GetClientStatus;
+    },
+
+    stop() {
+        if (originalGetClientStatus) {
+            PresenceStore.getClientStatus = originalGetClientStatus;
+            originalGetClientStatus = null;
+        }
+    },
 
     getPlatform(bypass: boolean, userId?: string): { browser: string; } | null {
         const currentUser = UserStore.getCurrentUser();
