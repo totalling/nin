@@ -122,9 +122,20 @@ function SummaryModal({ channelId, modalProps }: { channelId: string; modalProps
                     </ErrorCard>
                 )}
                 {phase === "done" && (
-                    <Paragraph style={{ whiteSpace: "pre-wrap", color: "var(--text-normal)", lineHeight: 1.6 }}>
+                    <p style={{
+                        whiteSpace: "pre-wrap",
+                        color: "#fff",
+                        lineHeight: 1.8,
+                        margin: 0,
+                        padding: "16px 18px",
+                        background: "rgba(255,255,255,0.07)",
+                        borderRadius: "10px",
+                        fontSize: "15px",
+                        fontWeight: 400,
+                        letterSpacing: "0.01em",
+                    }}>
                         {summary}
-                    </Paragraph>
+                    </p>
                 )}
             </ModalContent>
             {(phase === "error" || phase === "done") && (
