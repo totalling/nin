@@ -229,17 +229,21 @@ function VencordSettings() {
                                 Icon={UpdaterIcon}
                                 text="Check for Updates"
                                 action={async () => {
-                                    const outdated = await checkForUpdates();
-                                    if (outdated)
-                                        Alerts.show({
-                                            title: "Update available",
-                                            body: "A new version of nin is available. Relaunch to apply after pulling the latest changes.",
-                                            confirmText: "Relaunch",
-                                            cancelText: "Later",
-                                            onConfirm: relaunch,
-                                        });
-                                    else
-                                        Alerts.show({ title: "No updates", body: "nin is up to date!", confirmText: "OK" });
+                                    try {
+                                        const outdated = await checkForUpdates();
+                                        if (outdated)
+                                            Alerts.show({
+                                                title: "Update available",
+                                                body: "A new version of nin is available. Relaunch to apply after pulling the latest changes.",
+                                                confirmText: "Relaunch",
+                                                cancelText: "Later",
+                                                onConfirm: relaunch,
+                                            });
+                                        else
+                                            Alerts.show({ title: "No updates", body: "nin is up to date!", confirmText: "OK" });
+                                    } catch (e) {
+                                        Alerts.show({ title: "Update check failed", body: String(e), confirmText: "OK" });
+                                    }
                                 }}
                             />
                         </>

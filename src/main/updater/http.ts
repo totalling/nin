@@ -37,20 +37,13 @@ async function githubGet<T = any>(endpoint: string) {
     });
 }
 
-async function fetchUpdates() {
-    const data = await githubGet("/commits/main");
-    const latestHash = data.sha.slice(0, 7);
-    return latestHash !== gitHash;
-}
-
 async function calculateGitChanges() {
-    const isOutdated = await fetchUpdates();
-    if (!isOutdated) return [];
-
     const data = await githubGet(`/compare/${gitHash}...main`);
 
+    if (data.ahead_by === 0) return [];
+
     return data.commits.map((c: any) => ({
-        hash: c.sha.slice(0, 7),
+        hash: c.sha.slice(0, gitHash.length),
         author: c.author?.login ?? c.commit.author.name,
         message: c.commit.message.split("\n")[0]
     }));
