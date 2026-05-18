@@ -9,28 +9,26 @@ import { Button, Constants, Forms, Menu, React, RestAPI, Toasts, UserStore, useS
 async function fetchOwnMessages(channelId: string, onProgress: (found: number, total: number) => void): Promise<string[]> {
     const me = UserStore.getCurrentUser().id;
     const ids: string[] = [];
-    let before: string | undefined;
-    let total = 0;
+    let offset = 0;
 
     while (true) {
-        const url = before
-            ? `/channels/${channelId}/messages?limit=100&before=${before}`
-            : `/channels/${channelId}/messages?limit=100`;
+        const res = await RestAPI.get({
+            url: `/channels/${channelId}/messages/search?author_id=${me}&offset=${offset}`
+        });
 
-        const res = await RestAPI.get({ url });
-        const batch: any[] = res.body;
-        if (!batch?.length) break;
+        const { messages, total_results } = res.body;
+        if (!messages?.length) break;
 
-        for (const msg of batch) {
-            if (msg.author.id === me) ids.push(msg.id);
+        for (const group of messages) {
+            const hit = group.find((m: any) => m.hit);
+            if (hit) ids.push(hit.id);
         }
 
-        total += batch.length;
-        onProgress(ids.length, total);
-        before = batch[batch.length - 1].id;
+        offset += messages.length;
+        onProgress(ids.length, total_results);
 
-        if (batch.length < 100) break;
-        await new Promise(r => setTimeout(r, 300));
+        if (offset >= total_results) break;
+        await new Promise(r => setTimeout(r, 500));
     }
 
     return ids;
@@ -56,7 +54,7 @@ function BulkDeleteModal({ channelId, modalProps }: { channelId: string; modalPr
         setPhase("scanning");
         setScanned(0);
         const found = await fetchOwnMessages(channelId, (found, total) => {
-            setIds(prev => [...prev]);
+            setIds(prev => { prev.length = found; return [...prev]; });
             setScanned(total);
         });
         setIds(found);
@@ -84,7 +82,7 @@ function BulkDeleteModal({ channelId, modalProps }: { channelId: string; modalPr
                 )}
                 {phase === "scanning" && (
                     <Forms.FormText style={{ color: "rgba(255,255,255,0.7)" }}>
-                        Scanning... {scanned} messages checked
+                        Fetching... {ids.length} / {scanned} messages found
                     </Forms.FormText>
                 )}
                 {phase === "confirm" && (
