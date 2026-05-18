@@ -38,11 +38,14 @@ async function githubGet<T = any>(endpoint: string) {
 }
 
 async function calculateGitChanges() {
-    const data = await githubGet(`/compare/${gitHash}...main`);
+    const latest = await githubGet("/commits/main");
+    if (latest.sha.startsWith(gitHash)) return [];
 
-    if (data.ahead_by === 0) return [];
+    const commits: any[] = await githubGet(`/commits?sha=main&per_page=20`);
+    const idx = commits.findIndex((c: any) => c.sha.startsWith(gitHash));
+    const newCommits = idx === -1 ? commits.slice(0, 10) : commits.slice(0, idx);
 
-    return data.commits.map((c: any) => ({
+    return newCommits.map((c: any) => ({
         hash: c.sha.slice(0, gitHash.length),
         author: c.author?.login ?? c.commit.author.name,
         message: c.commit.message.split("\n")[0]

@@ -73,12 +73,8 @@ async function getMicStream(): Promise<MediaStream> {
 }
 
 async function getVCStream(): Promise<MediaStream> {
-    // getDisplayMedia captures system audio loopback on Windows/Electron.
-    // The user will see an OS picker — selecting any screen/window is fine,
-    // the video track is stopped immediately and only audio is kept.
     const display = await (navigator.mediaDevices as any).getDisplayMedia({
         audio: {
-            // Request loopback audio (system/application audio)
             echoCancellation: false,
             noiseSuppression: false,
             sampleRate: 48000,
@@ -86,7 +82,6 @@ async function getVCStream(): Promise<MediaStream> {
         video: { width: 1, height: 1, frameRate: 1 },
     }) as MediaStream;
 
-    // Drop the video track — we only want audio
     display.getVideoTracks().forEach(t => t.stop());
 
     const audioTracks = display.getAudioTracks();
