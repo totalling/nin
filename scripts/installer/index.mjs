@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, writeFileSync, renameSync, rmSync } from "fs";
+import { existsSync, writeFileSync, renameSync, rmSync, readdirSync } from "fs";
 import { execSync } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -12,29 +12,26 @@ const DIST = join(ROOT, "dist");
 const PATCHER = join(DIST, "patcher.js");
 
 const c = {
-    reset: "\x1b[0m",
-    bold: "\x1b[1m",
-    dim: "\x1b[2m",
-    red: "\x1b[31m",
-    green: "\x1b[32m",
-    yellow: "\x1b[33m",
-    blue: "\x1b[34m",
-    magenta: "\x1b[35m",
-    cyan: "\x1b[36m",
-    white: "\x1b[37m",
-    clear: "\x1b[2J\x1b[H",
+    reset:      "\x1b[0m",
+    bold:       "\x1b[1m",
+    dim:        "\x1b[2m",
+    red:        "\x1b[38;5;203m",
+    green:      "\x1b[38;5;114m",
+    yellow:     "\x1b[38;5;221m",
+    cyan:       "\x1b[38;5;75m",
+    clear:      "\x1b[2J\x1b[H",
     hideCursor: "\x1b[?25l",
-    showCursor: "\x1b[?25h"
+    showCursor: "\x1b[?25h",
 };
 
-const b = s => `${c.bold}${s}${c.reset}`;
-const dim = s => `${c.dim}${s}${c.reset}`;
+const b     = s => `${c.bold}${s}${c.reset}`;
+const dim   = s => `${c.dim}${s}${c.reset}`;
 const strip = s => s.replace(/\x1b\[[^m]*m/g, "");
-const rpad = (s, n) => s + " ".repeat(Math.max(0, n - strip(s).length));
+const rpad  = (s, n) => s + " ".repeat(Math.max(0, n - strip(s).length));
 
-const out = process.stdout;
-const W = Math.min(out.columns || 80, 76);
-const nl = (s = "") => out.write(s + "\n");
+const out    = process.stdout;
+const W      = Math.min(out.columns || 80, 76);
+const nl     = (s = "") => out.write(s + "\n");
 const center = s => " ".repeat(Math.floor((W - strip(s).length) / 2)) + s;
 
 const RULE = dim("─".repeat(W - 4));
@@ -45,7 +42,7 @@ const LOGO = [
     `${c.cyan}██╔██╗ ██║██║██╔██╗ ██║${c.reset}`,
     `${c.cyan}██║╚██╗██║██║██║╚██╗██║${c.reset}`,
     `${c.cyan}██║ ╚████║██║██║ ╚████║${c.reset}`,
-    `${c.cyan}╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝${c.reset}`
+    `${c.cyan}╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝${c.reset}`,
 ];
 
 function buildAsar(patcherPath) {
@@ -94,9 +91,17 @@ const DISCORD_PATHS = {
 };
 
 function getResources(base) {
-    return platform() === "darwin"
-        ? join(base, "Contents", "Resources")
-        : join(base, "resources");
+    if (platform() === "darwin") return join(base, "Contents", "Resources");
+    if (platform() === "win32") {
+        try {
+            const versioned = readdirSync(base)
+                .filter(d => /^app-[\d.]+$/.test(d))
+                .sort()
+                .pop();
+            if (versioned) return join(base, versioned, "resources");
+        } catch {}
+    }
+    return join(base, "resources");
 }
 
 function findInstalls() {
@@ -123,8 +128,16 @@ function fixPerms(p) {
     try { execSync(`sudo xattr -dr com.apple.quarantine "${p}"`, { stdio: "pipe" }); } catch {}
 }
 
+function killDiscord() {
+    if (platform() !== "win32") return;
+    try { execSync("taskkill /F /IM Discord.exe /T", { stdio: "pipe" }); } catch {}
+    try { execSync("taskkill /F /IM DiscordPTB.exe /T", { stdio: "pipe" }); } catch {}
+    try { execSync("taskkill /F /IM DiscordCanary.exe /T", { stdio: "pipe" }); } catch {}
+}
+
 function doInstall(inst) {
     if (!existsSync(PATCHER)) throw new Error("nin build footprint missing — run `pnpm build` first");
+    killDiscord();
     fixPerms(inst.path);
     if (inst.patched) rmSync(inst.asar, { force: true });
     else renameSync(inst.asar, inst.backup);
@@ -134,6 +147,7 @@ function doInstall(inst) {
 
 function doUninstall(inst) {
     if (!inst.patched) throw new Error("nin is not installed here");
+    killDiscord();
     fixPerms(inst.path);
     rmSync(inst.asar, { force: true });
     renameSync(inst.backup, inst.asar);
@@ -150,13 +164,13 @@ let flashOk   = true;
 function actionsFor(inst) {
     return inst.patched
         ? [
-            { id: "repair",    label: "Repair",    desc: "Re-inject framework modifications" },
-            { id: "uninstall", label: "Uninstall", desc: "Restore original pristine Discord binaries" },
-            { id: "back",      label: "← Back",    desc: "Return to environment list" },
+            { id: "repair",    label: "Repair",    desc: "re-inject framework modifications" },
+            { id: "uninstall", label: "Uninstall", desc: "restore original discord binaries" },
+            { id: "back",      label: "← Back",    desc: "" },
           ]
         : [
-            { id: "install",   label: "Install",   desc: "Inject client modifications into app container" },
-            { id: "back",      label: "← Back",    desc: "Return to environment list" },
+            { id: "install",   label: "Install",   desc: "inject client modifications" },
+            { id: "back",      label: "← Back",    desc: "" },
           ];
 }
 
@@ -165,7 +179,7 @@ function drawHeader() {
     nl();
     for (const row of LOGO) nl(center(row));
     nl();
-    nl(center(`${c.dim}installer  ·  ${c.cyan}v1.14.13${c.reset}${c.dim}  ·  lightweight client architecture${c.reset}`));
+    nl(center(`${c.dim}v1.1 (Idk what I'm doing!)  ·  lightweight client architecture${c.reset}`));
     nl();
     nl("  " + RULE);
     nl();
@@ -175,29 +189,27 @@ function drawMain() {
     drawHeader();
 
     if (!existsSync(PATCHER)) {
-        nl(`  ${c.yellow}⚠️  Warning:${c.reset} Distribution payload missing. Run ${c.cyan}${b("pnpm build")}${c.reset} first.`);
+        nl(`  ${c.yellow}!${c.reset}  payload missing — run ${c.cyan}pnpm build${c.reset} first`);
         nl();
     }
 
-    nl(`  ${b("AVAILABLE TARGET ENVIRONMENTS")}`);
+    nl(`  ${dim("targets")}`);
     nl();
 
     if (installs.length === 0) {
-        nl(`  ${c.red}  No valid Discord platform configurations discovered.${c.reset}`);
+        nl(`  ${dim("no discord installations found")}`);
     } else {
         const nameW = Math.max(...installs.map(i => i.name.length)) + 2;
         for (let i = 0; i < installs.length; i++) {
-            const inst  = installs[i];
-            const on    = i === sel;
-            
-            const arrow = on ? `${c.cyan}❯${c.reset}` : " ";
-            const name  = on ? `${c.cyan}${b(inst.name)}${c.reset}` : inst.name;
-            const tag   = inst.patched 
-                ? `${c.green}[patched]${c.reset}` 
-                : `${c.dim}[clean]  ${c.reset}`;
-            const path  = dim(inst.path);
-
-            nl(`  ${arrow}  ${rpad(name, on ? nameW + 9 : nameW)}  ${tag}  ${path}`);
+            const inst   = installs[i];
+            const on     = i === sel;
+            const cursor = on ? `${c.cyan}❯${c.reset}` : " ";
+            const name   = on ? `${c.cyan}${b(inst.name)}${c.reset}` : inst.name;
+            const status = inst.patched
+                ? `${c.green}● patched${c.reset}`
+                : `${c.dim}○ clean  ${c.reset}`;
+            const path   = dim(inst.path);
+            nl(`  ${cursor}  ${rpad(name, nameW)}  ${status}  ${path}`);
         }
     }
 
@@ -206,11 +218,12 @@ function drawMain() {
     nl();
 
     if (flash) {
-        nl(`  ${flashOk ? `${c.green}✔ ${b(flash)}` : `${c.red}✘ ${flash}`}${c.reset}`);
+        const sym = flashOk ? `${c.green}✓${c.reset}` : `${c.red}✗${c.reset}`;
+        nl(`  ${sym}  ${flash}`);
         nl();
     }
 
-    nl(`  ${dim("↑↓")} Navigate   ${dim("↵")} Confirm Target   ${dim("Q / Ctrl+C")} Exit Window`);
+    nl(`  ${dim("↑↓")} navigate   ${dim("↵")} select   ${dim("q")} quit`);
     nl();
 }
 
@@ -218,7 +231,9 @@ function drawAction() {
     const inst = installs[sel];
     drawHeader();
 
-    nl(`  ${b("Target Environment:")} ${c.cyan}${inst.name}${c.reset}  ${dim(`(${inst.path})`)}`);
+    const status = inst.patched ? `${c.green}● patched${c.reset}` : `${c.dim}○ clean${c.reset}`;
+    nl(`  ${c.cyan}${b(inst.name)}${c.reset}    ${status}`);
+    nl(`  ${dim(inst.path)}`);
     nl();
     nl("  " + RULE);
     nl();
@@ -226,17 +241,16 @@ function drawAction() {
     const acts = actionsFor(inst);
     for (let i = 0; i < acts.length; i++) {
         const { label, desc } = acts[i];
-        const on    = i === actionSel;
-        
-        const arrow = on ? `${c.cyan}❯${c.reset}` : " ";
-        const lbl   = on ? `${c.cyan}${b(label)}${c.reset}` : label;
-        nl(`  ${arrow}  ${rpad(lbl, on ? 23 : 14)}  ${desc ? dim(desc) : ""}`);
+        const on     = i === actionSel;
+        const cursor = on ? `${c.cyan}❯${c.reset}` : " ";
+        const lbl    = on ? `${c.cyan}${b(label)}${c.reset}` : label;
+        nl(`  ${cursor}  ${rpad(lbl, 12)}  ${desc ? dim(desc) : ""}`);
     }
 
     nl();
     nl("  " + RULE);
     nl();
-    nl(`  ${dim("↑↓")} Select Task   ${dim("↵")} Execute Activity   ${dim("Esc / ←")} Go Back`);
+    nl(`  ${dim("↑↓")} select   ${dim("↵")} execute   ${dim("esc")} back`);
     nl();
 }
 
@@ -255,9 +269,29 @@ function startSpinner(label) {
     }, 80);
 }
 
-function stopSpinner(id, ok) {
+function stopSpinner(id) {
     clearInterval(id);
     out.write("\r\x1b[K");
+}
+
+async function playIntro() {
+    out.write(c.clear);
+    nl();
+    for (const row of LOGO) {
+        nl(center(row));
+        await new Promise(r => setTimeout(r, 55));
+    }
+    nl();
+    const tagline = "v1.1 (Idk what I'm doing!)  ·  lightweight client architecture";
+    const pad = " ".repeat(Math.floor((W - tagline.length) / 2));
+    out.write(pad + c.dim);
+    for (const ch of tagline) {
+        out.write(ch);
+        await new Promise(r => setTimeout(r, 14));
+    }
+    out.write(c.reset);
+    nl();
+    await new Promise(r => setTimeout(r, 300));
 }
 
 async function runAction(inst, actionId) {
@@ -269,11 +303,11 @@ async function runAction(inst, actionId) {
         if (actionId === "install" || actionId === "repair") doInstall(inst);
         else doUninstall(inst);
 
-        stopSpinner(spinner, true);
-        flash  = actionId === "uninstall" ? "Module unhooked successfully. Restart Discord." : "Modifications active. Restart Discord instance.";
+        stopSpinner(spinner);
+        flash   = actionId === "uninstall" ? "Module unhooked successfully. Restart Discord." : "Modifications active. Restart Discord instance.";
         flashOk = true;
     } catch (e) {
-        stopSpinner(spinner, false);
+        stopSpinner(spinner);
         flash   = e.message;
         flashOk = false;
     }
@@ -300,9 +334,7 @@ process.on("exit", () => {
 });
 
 installs = findInstalls();
-draw();
-
-let running = false;
+let running = true;
 
 process.stdin.on("data", async key => {
     if (running) return;
@@ -348,3 +380,7 @@ process.stdin.on("data", async key => {
         }
     }
 });
+
+await playIntro();
+running = false;
+draw();
