@@ -4,7 +4,7 @@ import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { ChannelRouter, ChannelStore, GuildMemberStore, RelationshipStore, SelectedChannelStore, UserStore } from "@webpack/common";
+import { ChannelRouter, ChannelStore, GuildMemberStore, GuildStore, RelationshipStore, SelectedChannelStore, UserStore, VoiceStateStore } from "@webpack/common";
 
 interface VoiceStateChange {
     userId: string;
@@ -36,6 +36,8 @@ const settings = definePluginSettings({
     },
 });
 
+const knownChannels = new Map<string, string | null>();
+
 function getWatchedIds(): Set<string> {
     const raw = settings.store.watchedUsers.trim();
     if (!raw) return new Set();
@@ -61,6 +63,20 @@ export default definePlugin({
 
     settings,
 
+    start() {
+        knownChannels.clear();
+        for (const guildId of Object.keys(GuildStore.getGuilds())) {
+            const states = VoiceStateStore.getVoiceStates(guildId) as Record<string, { channelId?: string; }>;
+            for (const [userId, state] of Object.entries(states)) {
+                knownChannels.set(userId, state.channelId ?? null);
+            }
+        }
+    },
+
+    stop() {
+        knownChannels.clear();
+    },
+
     flux: {
         VOICE_STATE_UPDATES({ voiceStates }: { voiceStates: VoiceStateChange[]; }) {
             const myId = UserStore.getCurrentUser()?.id;
@@ -68,10 +84,22 @@ export default definePlugin({
 
             if (settings.store.onlyWhenIdle && SelectedChannelStore.getVoiceChannelId()) return;
 
-            for (const { userId, channelId, oldChannelId } of voiceStates) {
+            for (const { userId, channelId } of voiceStates) {
                 if (userId === myId) continue;
+
+                const previousChannel = knownChannels.get(userId);
+
+                knownChannels.set(userId, channelId ?? null);
+
+                if (previousChannel === undefined) continue;
+
                 if (!channelId) continue;
-                if (oldChannelId && !settings.store.notifyOnMoves) continue;
+
+                const sameChannel = previousChannel === channelId;
+                if (sameChannel) continue;
+
+                const isMove = !!previousChannel && !sameChannel;
+                if (isMove && !settings.store.notifyOnMoves) continue;
 
                 if (!shouldNotify(userId)) continue;
 
@@ -82,14 +110,18 @@ export default definePlugin({
                 if (!user) continue;
 
                 const guildId = channel.guild_id;
+                const guild = guildId ? GuildStore.getGuild(guildId) : null;
                 const nick = guildId ? GuildMemberStore.getNick(guildId, userId) : null;
                 const displayName = nick ?? (user as any).globalName ?? user.username;
 
-                const moved = !!oldChannelId;
+                const action = isMove ? "moved to" : "joined";
+                const location = guild
+                    ? `${guild.name}  ›  #${channel.name}`
+                    : `#${channel.name}`;
 
                 showNotification({
-                    title: `${displayName} ${moved ? "moved to" : "joined"} voice`,
-                    body: `#${channel.name}`,
+                    title: `${displayName} ${action} voice`,
+                    body: location,
                     icon: avatarUrl(userId, user.avatar),
                     onClick: () => ChannelRouter.transitionToChannel(channelId),
                 });
