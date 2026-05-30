@@ -141,19 +141,19 @@ if (!IS_VANILLA) {
             const disabledFeatures = new Set((args[1] ?? "").split(","));
             disabledFeatures.add("WidgetLayering");
             disabledFeatures.add("UseEcoQoSForBackgroundProcess");
-            args[1] += [...disabledFeatures].join(",");
+            args[1] = [...disabledFeatures].join(",");
         }
         return originalAppend.apply(this, args);
     };
 
-    // disable renderer backgrounding to prevent the app from unloading when in the background
-    // https://github.com/electron/electron/issues/2822
-    // https://github.com/GoogleChrome/chrome-launcher/blob/5a27dd574d47a75fec0fb50f7b774ebf8a9791ba/docs/chrome-flags-for-tools.md#task-throttling
-    // Work around discord unloading when in background
-    // Discord also recently started adding these flags but only on windows for some reason dunno why, it happens on Linux too
     app.commandLine.appendSwitch("disable-renderer-backgrounding");
     app.commandLine.appendSwitch("disable-background-timer-throttling");
     app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+
+    app.commandLine.appendSwitch("enable-gpu-rasterization");
+    app.commandLine.appendSwitch("enable-zero-copy");
+    app.commandLine.appendSwitch("enable-accelerated-video-decode");
+    app.commandLine.appendSwitch("enable-accelerated-video-encode");
 } else {
     console.log("[Vencord] Running in vanilla mode. Not loading Vencord");
 }

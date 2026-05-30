@@ -502,6 +502,12 @@ function runFactoryWithWrap(patchedFactory: PatchedModuleFactory, thisArg: unkno
  * @returns The patched module factory
  */
 function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory): PatchedModuleFactory {
+    if (patches.length === 0) {
+        const noop = originalFactory as PatchedModuleFactory;
+        noop[SYM_ORIGINAL_FACTORY] = originalFactory;
+        return noop;
+    }
+
     const originalFactoryCode = String(originalFactory);
     const isArrowFunction = originalFactoryCode.startsWith("(");
 
@@ -512,11 +518,11 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
 
     const patchedBy = new Set<string>();
 
+    const buildNumber = getBuildNumber();
+    const shouldCheckBuildNumber = buildNumber !== -1;
+
     for (let i = 0; i < patches.length; i++) {
         const patch = patches[i];
-
-        const buildNumber = getBuildNumber();
-        const shouldCheckBuildNumber = buildNumber !== -1;
 
         if (
             shouldCheckBuildNumber &&
