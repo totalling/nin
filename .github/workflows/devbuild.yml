@@ -1,0 +1,46 @@
+name: Publish Devbuild
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (standalone)
+        run: pnpm buildStandalone
+        env:
+          VENCORD_HASH: ${{ github.sha }}
+
+      - name: Update devbuild release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: devbuild
+          name: Development Build
+          prerelease: true
+          files: |
+            dist/patcher.js
+            dist/preload.js
+            dist/renderer.js
+            dist/renderer.css
+          body: |
+            Automated build from commit ${{ github.sha }}
+
+            > This is a rolling development build and is updated on every push to `main`.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

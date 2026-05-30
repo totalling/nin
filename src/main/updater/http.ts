@@ -16,25 +16,26 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { fetchJson } from "@main/utils/http";
+import { fetchBuffer, fetchJson } from "@main/utils/http";
 import { IpcEvents } from "@shared/IpcEvents";
 import { VENCORD_USER_AGENT } from "@shared/vencordUserAgent";
 import { ipcMain } from "electron";
+import { writeFileSync } from "original-fs";
+import { join } from "path";
 
 import gitHash from "~git-hash";
 import gitRemote from "~git-remote";
 
-import { serializeErrors } from "./common";
+import { serializeErrors, VENCORD_FILES } from "./common";
 
 const API_BASE = `https://api.github.com/repos/${gitRemote}`;
+const HEADERS = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": VENCORD_USER_AGENT
+};
 
 async function githubGet<T = any>(endpoint: string) {
-    return fetchJson<T>(API_BASE + endpoint, {
-        headers: {
-            Accept: "application/vnd.github+json",
-            "User-Agent": VENCORD_USER_AGENT
-        }
-    });
+    return fetchJson<T>(API_BASE + endpoint, { headers: HEADERS });
 }
 
 async function calculateGitChanges() {
@@ -52,7 +53,22 @@ async function calculateGitChanges() {
     }));
 }
 
+async function update() {
+    const release = await githubGet("/releases/latest");
+    const assets: Array<{ name: string; browser_download_url: string; }> = release.assets ?? [];
+
+    for (const file of VENCORD_FILES) {
+        const asset = assets.find(a => a.name === file);
+        if (!asset) throw new Error(`Release is missing ${file} — make sure the GitHub Actions workflow publishes all built files.`);
+
+        const data = await fetchBuffer(asset.browser_download_url, { headers: { "User-Agent": VENCORD_USER_AGENT } });
+        writeFileSync(join(__dirname, file), data);
+    }
+
+    return true;
+}
+
 ipcMain.handle(IpcEvents.GET_REPO, serializeErrors(() => `https://github.com/${gitRemote}`));
 ipcMain.handle(IpcEvents.GET_UPDATES, serializeErrors(calculateGitChanges));
-ipcMain.handle(IpcEvents.UPDATE, serializeErrors(() => true));
+ipcMain.handle(IpcEvents.UPDATE, serializeErrors(update));
 ipcMain.handle(IpcEvents.BUILD, serializeErrors(() => true));
